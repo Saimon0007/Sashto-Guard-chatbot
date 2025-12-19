@@ -11,10 +11,6 @@ A modern, modular starting point for building conversational experiences:
 - Clear extension points for custom skills and connectors
 - Example integrations, usage snippets, and deployment notes
 
----
-
-## Demo
-> Replace this with a GIF or link to a live demo when available.
 
 ---
 
