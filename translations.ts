@@ -47,7 +47,11 @@ export const translations = {
     menu: "Menu",
     attachFile: "Attach medical report or image",
     removeFile: "Remove file",
-    analyzingReport: "Analyzing your report..."
+    analyzingReport: "Analyzing your report...",
+    newChat: "New Chat",
+    recentChats: "Recent Chats",
+    noHistory: "No chat history.",
+    untitledChat: "Untitled Chat"
   },
   Spanish: {
     appTitle: "HealthGuard",
@@ -97,7 +101,11 @@ export const translations = {
     menu: "Menú",
     attachFile: "Adjuntar informe médico o imagen",
     removeFile: "Eliminar archivo",
-    analyzingReport: "Analizando su informe..."
+    analyzingReport: "Analizando su informe...",
+    newChat: "Nuevo Chat",
+    recentChats: "Chats Recientes",
+    noHistory: "No hay historial.",
+    untitledChat: "Chat Sin Título"
   },
   French: {
     appTitle: "HealthGuard",
@@ -147,7 +155,11 @@ export const translations = {
     menu: "Menu",
     attachFile: "Joindre un rapport médical ou une image",
     removeFile: "Supprimer le fichier",
-    analyzingReport: "Analyse de votre rapport..."
+    analyzingReport: "Analyse de votre rapport...",
+    newChat: "Nouvelle Discussion",
+    recentChats: "Discussions Récentes",
+    noHistory: "Pas d'historique.",
+    untitledChat: "Discussion Sans Titre"
   },
   German: {
     appTitle: "HealthGuard",
@@ -197,7 +209,11 @@ export const translations = {
     menu: "Menü",
     attachFile: "Medizinischen Bericht oder Bild anhängen",
     removeFile: "Datei entfernen",
-    analyzingReport: "Analysiere Ihren Bericht..."
+    analyzingReport: "Analysiere Ihren Bericht...",
+    newChat: "Neuer Chat",
+    recentChats: "Kürzliche Chats",
+    noHistory: "Kein Verlauf.",
+    untitledChat: "Unbenannter Chat"
   },
   Chinese: {
     appTitle: "健康卫士",
@@ -247,7 +263,11 @@ export const translations = {
     menu: "菜单",
     attachFile: "附加医疗报告或图片",
     removeFile: "删除文件",
-    analyzingReport: "正在分析您的报告..."
+    analyzingReport: "正在分析您的报告...",
+    newChat: "新聊天",
+    recentChats: "最近聊天",
+    noHistory: "无历史记录。",
+    untitledChat: "未命名聊天"
   },
   Hindi: {
     appTitle: "हेल्थगार्ड",
@@ -297,7 +317,11 @@ export const translations = {
     menu: "मेन्यू",
     attachFile: "चिकित्सा रिपोर्ट या छवि संलग्न करें",
     removeFile: "फ़ाइल हटाएँ",
-    analyzingReport: "आपकी रिपोर्ट का विश्लेषण कर रहा है..."
+    analyzingReport: "आपकी रिपोर्ट का विश्लेषण कर रहा है...",
+    newChat: "नई चैट",
+    recentChats: "हाल की चैट",
+    noHistory: "कोई इतिहास नहीं।",
+    untitledChat: "शीर्षकहीन चैट"
   },
   Arabic: {
     appTitle: "HealthGuard",
@@ -347,7 +371,11 @@ export const translations = {
     menu: "قائمة",
     attachFile: "إرفاق تقرير طبي أو صورة",
     removeFile: "إزالة الملف",
-    analyzingReport: "جارٍ تحليل تقريرك..."
+    analyzingReport: "جارٍ تحليل تقريرك...",
+    newChat: "محادثة جديدة",
+    recentChats: "المحادثات الأخيرة",
+    noHistory: "لا يوجد سجل.",
+    untitledChat: "محادثة بدون عنوان"
   },
   Bengali: {
     appTitle: "হেলথগার্ড",
@@ -397,7 +425,11 @@ export const translations = {
     menu: "মেনু",
     attachFile: "মেডিকেল রিপোর্ট বা ছবি সংযুক্ত করুন",
     removeFile: "ফাইল সরান",
-    analyzingReport: "আপনার রিপোর্ট বিশ্লেষণ করা হচ্ছে..."
+    analyzingReport: "আপনার রিপোর্ট বিশ্লেষণ করা হচ্ছে...",
+    newChat: "নতুন চ্যাট",
+    recentChats: "সাম্প্রতিক চ্যাট",
+    noHistory: "কোন চ্যাট ইতিহাস নেই।",
+    untitledChat: "শিরোনামহীন চ্যাট"
   }
 };
 

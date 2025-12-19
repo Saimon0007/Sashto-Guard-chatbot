@@ -1,5 +1,5 @@
 {
-  "name": "HealthGuard AI",
+  "name": "Sashto-Chatbot",
   "description": "Your personalized, context-aware AI health assistant for accurate medical information, diet planning, and medication reminders.",
   "requestFramePermissions": [
     "geolocation",

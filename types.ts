@@ -16,6 +16,14 @@ export interface Message {
   };
 }
 
+export interface ChatSession {
+  id: string;
+  title: string;
+  lastMessage: string;
+  updatedAt: string; // ISO string
+  messages: Message[];
+}
+
 export interface Reminder {
   id: string;
   title: string;
@@ -73,5 +81,6 @@ export enum ViewState {
   CHAT = 'CHAT',
   PROFILE = 'PROFILE',
   REMINDERS = 'REMINDERS',
-  VAULT = 'VAULT'
+  VAULT = 'VAULT',
+  HISTORY = 'HISTORY'
 }

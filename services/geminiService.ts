@@ -200,15 +200,25 @@ export const sendMessage = async (
 
       // Send the tool execution result back to the model to get the final text response
       if (functionResponses.length > 0) {
-        const toolResult = await chatSession.sendToolResponse({
-            functionResponses: functionResponses
+        // Create Parts array for the function responses
+        const parts: Part[] = functionResponses.map(fr => ({
+            functionResponse: fr
+        }));
+
+        const toolResult = await chatSession.sendMessage({
+            message: parts
         });
-        textResponse += toolResult.text;
+        
+        if (toolResult.text) {
+             textResponse += toolResult.text;
+        }
         // Extract grounding from tool response as well
         extractGrounding(toolResult);
       }
     } else {
-        textResponse = result.text;
+        if (result.text) {
+            textResponse = result.text;
+        }
     }
 
     // Remove duplicate sources

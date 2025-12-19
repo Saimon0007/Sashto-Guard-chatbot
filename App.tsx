@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Message, Reminder, UserProfile, ViewState, HealthRecord, ConsentSettings, AuditLogEntry } from './types';
+import { Message, Reminder, UserProfile, ViewState, HealthRecord, ConsentSettings, AuditLogEntry, ChatSession } from './types';
 import ChatBubble from './components/ChatBubble';
 import ReminderList from './components/ReminderList';
 import SettingsModal from './components/SettingsModal';
@@ -32,18 +32,17 @@ const DEFAULT_CONSENT: ConsentSettings = {
 
 const App: React.FC = () => {
   // State
-  const [messages, setMessages] = useState<Message[]>([{
-    id: '1',
-    role: 'model',
-    text: "Hello! I'm HealthGuard. I can help you with medical information, diet planning, and reminders. Please set up your profile for a personalized experience.",
-    timestamp: new Date()
-  }]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.CHAT);
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [showSettings, setShowSettings] = useState(false);
+  
+  // Chat History State
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string>('');
   
   // New State for Vault
   const [records, setRecords] = useState<HealthRecord[]>([]);
@@ -72,6 +71,59 @@ const App: React.FC = () => {
     setAuditLogs(prev => [...prev, newLog]);
   };
 
+  const lang = profile.language || 'English';
+
+  const createNewChat = () => {
+    const newId = Date.now().toString();
+    const initialMsg: Message = {
+      id: 'init-' + newId,
+      role: 'model',
+      text: t(lang, 'welcome'),
+      timestamp: new Date()
+    };
+    
+    const newSession: ChatSession = {
+      id: newId,
+      title: t(lang, 'newChat'),
+      lastMessage: initialMsg.text,
+      updatedAt: new Date().toISOString(),
+      messages: [initialMsg]
+    };
+
+    setSessions(prev => [newSession, ...prev]);
+    setCurrentSessionId(newId);
+    setMessages([initialMsg]);
+    setCurrentView(ViewState.CHAT);
+    addAuditLog('MODIFY', 'User', 'Created new chat session');
+  };
+
+  const loadChat = (sessionId: string) => {
+    const session = sessions.find(s => s.id === sessionId);
+    if (session) {
+        setCurrentSessionId(sessionId);
+        setMessages(session.messages);
+        setCurrentView(ViewState.CHAT);
+        addAuditLog('VIEW', 'User', `Switched to chat session ${sessionId}`);
+    }
+  };
+
+  const deleteChat = (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation();
+    const newSessions = sessions.filter(s => s.id !== sessionId);
+    setSessions(newSessions);
+    // Local storage will be updated by useEffect
+    
+    if (currentSessionId === sessionId) {
+        if (newSessions.length > 0) {
+            loadChat(newSessions[0].id);
+        } else {
+            // Force create new if all deleted
+            createNewChat();
+        }
+    }
+    addAuditLog('MODIFY', 'User', 'Deleted chat session');
+  };
+
   // Initialize
   useEffect(() => {
     // Check environment variable for API Key
@@ -80,7 +132,7 @@ const App: React.FC = () => {
       initializeGemini(apiKey);
     } else {
       console.error("API_KEY not found in environment variables");
-      setMessages(prev => [...prev, {
+      setMessages([{
         id: 'error-key',
         role: 'system',
         text: 'CRITICAL: API Key not found. Please configure the application with a valid API Key.',
@@ -107,6 +159,35 @@ const App: React.FC = () => {
     const savedLogs = localStorage.getItem('health_audit_logs');
     if (savedLogs) setAuditLogs(JSON.parse(savedLogs));
 
+    // Load Chat Sessions
+    const savedSessions = localStorage.getItem('health_chat_sessions');
+    if (savedSessions) {
+        const parsed = JSON.parse(savedSessions);
+        // Fix string dates from JSON
+        const parsedWithDates = parsed.map((s: ChatSession) => ({
+            ...s,
+            messages: s.messages.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }))
+        }));
+        
+        setSessions(parsedWithDates);
+        
+        if (parsedWithDates.length > 0) {
+            // Load most recent
+            const mostRecent = parsedWithDates.sort((a: ChatSession, b: ChatSession) => 
+                new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+            )[0];
+            setCurrentSessionId(mostRecent.id);
+            setMessages(mostRecent.messages);
+        } else {
+            // Logic handled in next useEffect if sessions empty
+             // But we can't depend on state immediately.
+             // We'll let the sessions state update and handle empty case if needed or initialize here
+             // It's safer to rely on the fact that if setSessions([]) was called, state is [], 
+             // but here we are in init.
+             // Let's create new chat if parsed is empty
+        }
+    } 
+
     // Get Location
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -125,12 +206,67 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Effect to ensure we have a chat session if none exist
+  useEffect(() => {
+     // If sessions loaded (or initial empty) and ID is empty, create new
+     // We check if we've attempted to load from storage already by checking if sessions is not empty 
+     // OR if it is empty but we haven't initialized.
+     // Simplified: if currentSessionId is empty after mount, create new.
+     const timer = setTimeout(() => {
+        if (!currentSessionId) {
+            createNewChat();
+        }
+     }, 100);
+     return () => clearTimeout(timer);
+  }, [sessions.length]); // Dep on length change
+
   // Save to local storage on change
   useEffect(() => { localStorage.setItem('health_profile', JSON.stringify(profile)); }, [profile]);
   useEffect(() => { localStorage.setItem('health_reminders', JSON.stringify(reminders)); }, [reminders]);
   useEffect(() => { localStorage.setItem('health_records', JSON.stringify(records)); }, [records]);
   useEffect(() => { localStorage.setItem('health_consent', JSON.stringify(consent)); }, [consent]);
   useEffect(() => { localStorage.setItem('health_audit_logs', JSON.stringify(auditLogs)); }, [auditLogs]);
+
+  // Sync Messages with Current Session & Save Sessions
+  useEffect(() => {
+    if (!currentSessionId || messages.length === 0) return;
+
+    setSessions(prev => {
+        const index = prev.findIndex(s => s.id === currentSessionId);
+        // If not found, it might be a new session race condition, but usually safe.
+        // If it's a completely new session created by createNewChat, it's in prev.
+        
+        let newSessions = [...prev];
+        
+        if (index !== -1) {
+            const currentTitle = prev[index].title;
+            // Generate title from first user message if title is default
+            const userMsg = messages.find(m => m.role === 'user');
+            let newTitle = currentTitle;
+            if ((currentTitle === 'New Chat' || currentTitle === t(lang, 'newChat') || currentTitle === 'Nuevo Chat') && userMsg) {
+                newTitle = userMsg.text.slice(0, 30) + (userMsg.text.length > 30 ? '...' : '');
+            }
+
+            const updatedSession: ChatSession = {
+                ...prev[index],
+                messages: messages,
+                lastMessage: messages[messages.length - 1].text,
+                updatedAt: new Date().toISOString(),
+                title: newTitle
+            };
+            newSessions[index] = updatedSession;
+        } else {
+             // Fallback if session ID mismatch (shouldn't happen with correct logic)
+             return prev;
+        }
+        
+        // Sort by recency
+        newSessions.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        
+        localStorage.setItem('health_chat_sessions', JSON.stringify(newSessions));
+        return newSessions;
+    });
+  }, [messages, currentSessionId, lang]);
 
   // Scroll to bottom of chat
   useEffect(() => {
@@ -143,7 +279,7 @@ const App: React.FC = () => {
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result as string;
-        // Remove data URL prefix (e.g., "data:image/jpeg;base64,") to get just the base64 data
+        // Remove data URL prefix
         const base64Data = base64String.split(',')[1];
         
         setSelectedFile({
@@ -154,7 +290,6 @@ const App: React.FC = () => {
       };
       reader.readAsDataURL(file);
     }
-    // Reset input so same file can be selected again if needed
     e.target.value = '';
   };
 
@@ -167,7 +302,7 @@ const App: React.FC = () => {
       text: input,
       timestamp: new Date(),
       attachment: selectedFile ? {
-        type: 'image', // generalizing for UI, even if PDF
+        type: 'image', // generalizing for UI
         mimeType: selectedFile.mimeType,
         data: selectedFile.data,
         name: selectedFile.name
@@ -176,7 +311,6 @@ const App: React.FC = () => {
 
     setMessages(prev => [...prev, userMsg]);
     
-    // Store temp file reference for the API call then clear state
     const currentFile = selectedFile;
     const currentInput = input;
     
@@ -185,13 +319,10 @@ const App: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Create history from existing messages (excluding system messages and errors)
-      // Map existing 'Message' type to SDK 'Content' type
       const history: Content[] = messages
         .filter(m => !m.isError && (m.role === 'user' || m.role === 'model'))
         .map(m => {
           const parts: any[] = [{ text: m.text }];
-          // Add history attachment if present
           if (m.attachment) {
              parts.unshift({
                inlineData: {
@@ -206,10 +337,7 @@ const App: React.FC = () => {
           };
         });
 
-      // Initialize chat with history so context is preserved
       await startChat(profile, consent, records, history);
-      
-      // We only log the view access once per session or significantly, but for now log on send
       addAuditLog('VIEW', 'AI_Assistant', 'AI accessed allowed context for response generation');
 
       const response = await sendMessage(
@@ -250,7 +378,7 @@ const App: React.FC = () => {
     }
   };
 
-  // ... (Reminder Handlers remain same) ...
+  // ... (Reminder Handlers) ...
   const handleReminderToggle = (id: string) => {
     setReminders(prev => prev.map(r => 
       r.id === id ? { ...r, completed: !r.completed, snoozed: false } : r
@@ -286,7 +414,6 @@ const App: React.FC = () => {
 
   // Vault Actions
   const handleImportSimulation = () => {
-    // Simulate FHIR Import
     const newRecords: HealthRecord[] = [
       { id: 'rec_1', category: 'condition', title: 'Essential Hypertension', date: '2023-05-12', source: 'General Hospital (FHIR)', isVerified: true },
       { id: 'rec_2', category: 'medication', title: 'Lisinopril 10mg', date: '2023-05-12', source: 'General Hospital (FHIR)', isVerified: true },
@@ -298,7 +425,7 @@ const App: React.FC = () => {
   };
 
   const handleExport = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ profile, records, reminders }, null, 2));
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ profile, records, reminders, sessions }, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
     downloadAnchorNode.setAttribute("download", "health_vault_export.json");
@@ -313,8 +440,6 @@ const App: React.FC = () => {
      addAuditLog('MODIFY', 'User', 'Updated privacy consent settings');
   };
 
-  const lang = profile.language || 'English';
-
   return (
     <div className={`flex h-full bg-bdgreen-50 font-sans ${lang === 'Arabic' ? 'rtl' : 'ltr'}`} dir={lang === 'Arabic' ? 'rtl' : 'ltr'}>
       {/* Sidebar */}
@@ -328,7 +453,19 @@ const App: React.FC = () => {
           <h1 className="font-bold text-xl tracking-wide">{t(lang, 'appTitle')}</h1>
         </div>
         
-        <nav className="flex-1 p-4 space-y-3">
+        <div className="p-4">
+           <button 
+             onClick={createNewChat}
+             className="w-full bg-bdgreen-700/50 hover:bg-bdgreen-600 border border-bdgreen-600/50 text-white py-2 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm"
+           >
+             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+               <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+             </svg>
+             {t(lang, 'newChat')}
+           </button>
+        </div>
+
+        <nav className="p-4 space-y-3">
           {[
              { id: ViewState.CHAT, label: t(lang, 'chat'), icon: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z' },
              { id: ViewState.REMINDERS, label: t(lang, 'reminders'), icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', count: reminders.filter(r => !r.completed).length },
@@ -355,6 +492,34 @@ const App: React.FC = () => {
           ))}
         </nav>
 
+        {/* Recent Chats List in Sidebar */}
+        <div className="flex-1 overflow-y-auto px-4 pb-2 space-y-1">
+           <h3 className="text-xs font-semibold text-bdgreen-300 uppercase tracking-wider mb-2 px-2">{t(lang, 'recentChats')}</h3>
+           {sessions.map((session) => (
+              <div 
+                 key={session.id}
+                 onClick={() => loadChat(session.id)}
+                 className={`group flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer text-sm transition-colors ${currentSessionId === session.id && currentView === ViewState.CHAT ? 'bg-bdgreen-800 text-white' : 'text-bdgreen-100 hover:bg-bdgreen-800/30'}`}
+              >
+                 <div className="flex items-center gap-2 overflow-hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                    </svg>
+                    <span className="truncate">{session.title}</span>
+                 </div>
+                 <button 
+                    onClick={(e) => deleteChat(e, session.id)}
+                    className="text-bdgreen-400 hover:text-bdred-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title={t(lang, 'delete')}
+                 >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                       <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                 </button>
+              </div>
+           ))}
+        </div>
+
         <div className="p-4 border-t border-bdgreen-700/50">
            <div 
              className="bg-bdgreen-800/40 rounded-xl p-3 cursor-pointer hover:bg-bdgreen-700/60 transition-all duration-300 border border-transparent hover:border-bdgreen-600"
@@ -379,11 +544,32 @@ const App: React.FC = () => {
         <div className="md:hidden h-14 bg-bdgreen-900 text-white flex items-center justify-between px-4 z-10 shadow-md">
            <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded-full bg-bdred-500 shadow-md"></div>
-              <span className="font-bold text-lg">{t(lang, 'appTitle')}</span>
+              <span className="font-bold text-lg truncate max-w-[120px]">{t(lang, 'appTitle')}</span>
            </div>
-           <button onClick={() => setCurrentView(ViewState.VAULT)} className="text-white">
-              {t(lang, 'menu')}
-           </button>
+           
+           <div className="flex items-center gap-3">
+              <button 
+                  onClick={createNewChat} 
+                  className="p-1 rounded-full hover:bg-bdgreen-800 text-bdgreen-100"
+                  title={t(lang, 'newChat')}
+              >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                  </svg>
+              </button>
+              <button 
+                  onClick={() => setCurrentView(ViewState.HISTORY)} 
+                  className={`p-1 rounded-full hover:bg-bdgreen-800 ${currentView === ViewState.HISTORY ? 'text-white' : 'text-bdgreen-200'}`}
+                  title={t(lang, 'recentChats')}
+              >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                  </svg>
+              </button>
+              <button onClick={() => setCurrentView(ViewState.VAULT)} className="text-white">
+                  {t(lang, 'menu')}
+              </button>
+           </div>
         </div>
 
         {/* View Switching */}
@@ -492,7 +678,7 @@ const App: React.FC = () => {
              </div>
           </div>
 
-          {/* Health Vault View (New) */}
+          {/* Health Vault View */}
           <div className={`absolute inset-0 flex flex-col bg-gray-50 transition-opacity duration-300 ${currentView === ViewState.VAULT ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
              <HealthVault 
                 records={records}
@@ -503,6 +689,47 @@ const App: React.FC = () => {
                 onExport={handleExport}
                 language={lang}
              />
+          </div>
+
+          {/* Mobile History View */}
+          <div className={`absolute inset-0 flex flex-col bg-gray-50 transition-opacity duration-300 ${currentView === ViewState.HISTORY ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+             <div className="p-6 border-b bg-white flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-bdgreen-900">{t(lang, 'recentChats')}</h2>
+                <button 
+                    onClick={createNewChat}
+                    className="p-2 bg-bdgreen-100 rounded-full text-bdgreen-700 hover:bg-bdgreen-200"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                    </svg>
+                </button>
+             </div>
+             <div className="flex-1 overflow-y-auto p-4 space-y-3">
+               {sessions.length === 0 ? (
+                   <p className="text-gray-400 text-center mt-10">{t(lang, 'noHistory')}</p>
+               ) : (
+                   sessions.map((session) => (
+                      <div 
+                         key={session.id}
+                         onClick={() => loadChat(session.id)}
+                         className={`bg-white p-4 rounded-xl border border-bdgreen-100 shadow-sm flex items-center justify-between active:scale-95 transition-transform ${currentSessionId === session.id ? 'border-bdgreen-500 ring-1 ring-bdgreen-500' : ''}`}
+                      >
+                         <div>
+                            <h3 className="font-semibold text-bdgreen-900 truncate max-w-[200px]">{session.title}</h3>
+                            <p className="text-xs text-gray-400 mt-1">{new Date(session.updatedAt).toLocaleDateString()}</p>
+                         </div>
+                         <button 
+                            onClick={(e) => deleteChat(e, session.id)}
+                            className="p-2 text-gray-400 hover:text-bdred-500"
+                         >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                               <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                         </button>
+                      </div>
+                   ))
+               )}
+             </div>
           </div>
 
         </div>
