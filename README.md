@@ -12,11 +12,6 @@ A modern, modular starting point for building conversational experiences:
 
 ---
 
-## Demo
-> Replace this with a GIF or link to a live demo when available.
-
----
-
 ## Features
 - Conversational core with configurable dialogue flow
 - Easy to add custom skills (NLP, knowledge retrieval, etc.)
