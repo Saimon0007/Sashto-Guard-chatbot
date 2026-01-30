@@ -21,7 +21,7 @@ A modern, modular starting point for building conversational experiences:
 
 ---
 
-## Quickstart — Run locally (3 minutes)
+## Quickstart: Run locally (3 minutes)
 Prerequisites:
 - Node.js (v16+ or LTS) or Python 3.10+ depending on repo implementation
 - Git
@@ -184,11 +184,11 @@ Please follow the code style in existing files and add unit tests for logic chan
 
 ---
 
-## Roadmap (example)
-- [ ] Add multi-language support
-- [ ] Integrate vector search for knowledge retrieval
-- [ ] Add user/session analytics dashboard
-- [ ] Provide prebuilt deploy templates (Terraform / CloudFormation)
+## Roadmap i'm moving towards
+- [ ] Adding multi-language support
+- [ ] Integrating vector search for knowledge retrieval
+- [ ] Adding user/session analytics dashboard
+- [ ] Providing prebuilt deploy templates (Terraform / CloudFormation)
 
 ---
 
